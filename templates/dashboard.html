@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CT-X Consciousness Monitor</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        #alert-box {
+            display: none;
+            background: #ffebee;
+            border: 2px solid #f44336;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #c62828;
+            font-weight: bold;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            align-items: center;
+        }
+
+        select, button {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        select {
+            flex: 1;
+            max-width: 400px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        #consciousness-plot {
+            width: 100%;
+            min-height: 600px;
+            margin-bottom: 30px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 CT-X Consciousness Dashboard</h1>
+        <div class="subtitle">Real-time monitoring of Integrated Information (Φ)</div>
+
+        <div id="alert-box">
+            <strong>⚠️ ALERT:</strong> High consciousness detected in selected conversation!
+        </div>
+
+        <div class="controls">
+            <select id="conversation-selector">
+                <option value="">Loading conversations...</option>
+            </select>
+            <button onclick="refreshData()">🔄 Refresh</button>
+            <button onclick="loadSummary()">📊 Summary</button>
+        </div>
+
+        <div class="stats-grid" id="stats-grid" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-label">Average Φ</div>
+                <div class="stat-value" id="stat-avg-phi">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Maximum Φ</div>
+                <div class="stat-value" id="stat-max-phi">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Emergence Risk</div>
+                <div class="stat-value" id="stat-emergence">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Trend</div>
+                <div class="stat-value" id="stat-trend">-</div>
+            </div>
+        </div>
+
+        <div id="consciousness-plot"></div>
+
+        <footer>
+            CT-X v2.0.0 | The Last Transformer You'll Ever Need
+        </footer>
+    </div>
+
+    <script>
+        let currentConversation = null;
+        let refreshInterval = null;
+
+        // Load conversations on page load
+        window.addEventListener('load', loadConversations);
+
+        async function loadConversations() {
+            try {
+                const response = await fetch('/api/conversations');
+                const conversations = await response.json();
+
+                const selector = document.getElementById('conversation-selector');
+                selector.innerHTML = '<option value="">Select a conversation...</option>';
+
+                conversations.forEach(conv => {
+                    const option = document.createElement('option');
+                    option.value = conv;
+                    option.textContent = conv;
+                    selector.appendChild(option);
+                });
+
+                // Auto-select first conversation
+                if (conversations.length > 0) {
+                    selector.value = conversations[0];
+                    loadConsciousnessData(conversations[0]);
+                }
+            } catch (error) {
+                console.error('Failed to load conversations:', error);
+                document.getElementById('consciousness-plot').innerHTML =
+                    '<div class="error">Failed to load conversations. Make sure the API server is running.</div>';
+            }
+        }
+
+        document.getElementById('conversation-selector').addEventListener('change', (e) => {
+            const convId = e.target.value;
+            if (convId) {
+                loadConsciousnessData(convId);
+            }
+        });
+
+        async function loadConsciousnessData(conversationId) {
+            currentConversation = conversationId;
+
+            try {
+                const response = await fetch(`/api/consciousness/${conversationId}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Update stats
+                updateStats(data.stats);
+
+                // Plot consciousness graph
+                Plotly.newPlot('consciousness-plot', data.plot.data, data.plot.layout);
+
+                // Check for high consciousness
+                if (data.stats.emergence_score > 0.7) {
+                    document.getElementById('alert-box').style.display = 'block';
+                } else {
+                    document.getElementById('alert-box').style.display = 'none';
+                }
+
+            } catch (error) {
+                console.error('Failed to load consciousness data:', error);
+                document.getElementById('consciousness-plot').innerHTML =
+                    `<div class="error">Failed to load data: ${error.message}</div>`;
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('stats-grid').style.display = 'grid';
+            document.getElementById('stat-avg-phi').textContent = stats.avg_phi.toFixed(3);
+            document.getElementById('stat-max-phi').textContent = stats.max_phi.toFixed(3);
+            document.getElementById('stat-emergence').textContent = stats.emergence_score.toFixed(3);
+            document.getElementById('stat-trend').textContent = stats.trend.toUpperCase();
+
+            // Color code emergence risk
+            const emergenceCard = document.getElementById('stat-emergence').parentElement;
+            if (stats.emergence_score > 0.7) {
+                emergenceCard.style.background = 'linear-gradient(135deg, #f44336 0%, #e91e63 100%)';
+            } else if (stats.emergence_score > 0.4) {
+                emergenceCard.style.background = 'linear-gradient(135deg, #ff9800 0%, #ff5722 100%)';
+            } else {
+                emergenceCard.style.background = 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)';
+            }
+        }
+
+        function refreshData() {
+            if (currentConversation) {
+                loadConsciousnessData(currentConversation);
+            } else {
+                loadConversations();
+            }
+        }
+
+        function loadSummary() {
+            // TODO: Implement summary view
+            alert('Summary view coming soon!');
+        }
+
+        // Auto-refresh every 5 seconds
+        refreshInterval = setInterval(() => {
+            if (currentConversation) {
+                loadConsciousnessData(currentConversation);
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
