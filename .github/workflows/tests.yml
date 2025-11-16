@@ -1,0 +1,59 @@
+name: CT-X Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov black flake8 mypy
+
+    - name: Lint with flake8
+      run: |
+        flake8 ct_x/ --max-line-length=100 --ignore=E203,W503
+
+    - name: Format check with black
+      run: |
+        black --check ct_x/ tests/
+
+    - name: Type check with mypy
+      run: |
+        mypy ct_x/ --ignore-missing-imports
+      continue-on-error: true
+
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v --cov=ct_x --cov-report=xml --cov-report=term -m "not slow and not gpu"
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella

@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  ct-x-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ct-x:latest
+    container_name: ct-x-inference
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/models:ro
+      - ./logs:/logs
+    environment:
+      - MODEL_PATH=/models/ct-x-70b
+      - DEVICE=auto
+      - PORT=8000
+      - CUDA_VISIBLE_DEVICES=0,1,2,3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  ct-x-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    image: ct-x-dashboard:latest
+    container_name: ct-x-dashboard
+    ports:
+      - "5000:5000"
+    environment:
+      - API_URL=http://ct-x-api:8000
+    depends_on:
+      - ct-x-api
+    restart: unless-stopped
+
+networks:
+  default:
+    name: ct-x-network
